@@ -1,6 +1,7 @@
 #include <iostream>
-#include "Limit.h"
 
+#include "Limit.h"
+#include "Order.h"
 
 Limit::Limit(int _limitPrice, Side _side, int _numberOfOrders, int _totalShares):
     limitPrice(_limitPrice), side(_side), numberOfOrders(_numberOfOrders), totalShares(_totalShares), 

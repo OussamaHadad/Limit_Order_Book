@@ -1,7 +1,6 @@
 #include <iostream>
 #include <ctime>
 
-
 enum class Side {Bid, Ask};    // 0 for Bid & 1 for Ask
 enum class OrderType {LimitOrder, MarketOrder, StopOrder}; // Sell/Buy at least/most at the limit price; Sell/Buy immediately; Sell/Buy immediately after the other side's price goes above/below the stop price
 enum class TIF {GTC, DAY, IOC, FOK};    // Time in force : {Good Till Cancel, Day, Immediate or Cancel Order, Fill or Kill Order}
@@ -48,13 +47,4 @@ public:
 };
 
 
-
-class IcebergOrder  :   public Order    {
-    // an Iceberg order has a visible number of shares that appears in the order book meanwhile its "real" number of shares is hidden 
-    int visibleShares;
-
-public:
-    void amendOrder(int newVisibleShares, int newShares, int newLimitPrice);
-    void executeOrder(int tradedShares);
-};
 

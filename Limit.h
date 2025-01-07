@@ -1,7 +1,5 @@
 #include <iostream>
 
-#include "Order.h"
-
 
 class Order;    // We declare Order class before defining its attributes and the prototypes of its methods in Order.h
 
