@@ -9,7 +9,85 @@ Limit::Limit(int _limitPrice, Side _side, int _numberOfOrders, int _totalShares)
     {}
 
 Limit::~Limit(){
-    ;
+    /* Destructor for a Limit node in an Order Book AVL Tree
+    When deleting a node from a Tree we face 3 cases: the node has no children (leaf node), or it has one child node, or it has 2 child nodes 
+    This decstructor replaces the node by the bottom left node from its right subtree   */
+
+    if (parentLimit == nullptr){ // The Root node
+        // Case 1: Node has at most one child node
+        if (leftChildLimit == nullptr && rightChildLimit == nullptr){ // Leaf Node -> No changes
+            return;
+        }
+        else if (leftChildLimit == nullptr){ // Node has only right child node
+            rightChildLimit->setParentLimit(nullptr);
+            return;
+        }
+        else if (rightChildLimit == nullptr){ // Node has only left child node
+            leftChildLimit->setParentLimit(nullptr);
+            return;
+        }
+
+        // Case 2: Node has two child nodes; We choose the new root node to be the most left node in the right subtree
+        Limit* temp = rightChildLimit;
+        while (temp->leftChildLimit != nullptr)
+            temp = temp->getLeftChildLimit();
+        
+        if (rightChildLimit->getLeftChildLimit() != nullptr){ // else, then we simply set rightChildLimit as the new root node
+            temp->getParentLimit()->setLeftChildLimit(temp->getRightChildLimit());  // Update temp's parent's left child
+            if (temp->getRightChildLimit()) // Update temp's right child's parent
+                temp->getRightChildLimit()->setParentLimit(temp->getParentLimit());
+            temp->setRightChildLimit(rightChildLimit);
+            rightChildLimit->setParentLimit(temp);
+        }
+        temp->setLeftChildLimit(leftChildLimit);
+        leftChildLimit->setParentLimit(temp);
+    }
+
+    else{ // not the Root node
+        bool isLeftChild = (limitPrice < parentLimit->getLimitPrice()); // true if this node is a left child, else false
+        
+        // Case 1: Node has at most one child node
+        if (leftChildLimit == nullptr){ // Node has no left child
+            if (isLeftChild)
+                parentLimit->setLeftChildLimit(rightChildLimit);
+            else
+                parentLimit->setRightChildLimit(rightChildLimit);
+
+            if (rightChildLimit != nullptr)
+                rightChildLimit->setParentLimit(parentLimit);
+            return;
+        }
+        else if (rightChildLimit == nullptr){ // Node has no right child
+            if (isLeftChild)
+                parentLimit->setLeftChildLimit(leftChildLimit);
+            else
+                parentLimit->setRightChildLimit(leftChildLimit);
+
+            if (leftChildLimit != nullptr)
+                leftChildLimit->setParentLimit(parentLimit);
+            return;
+        }
+
+        // Case 2: Node has two child nodes; We choose the new root node to be the most left node in the right subtree
+        Limit* temp = rightChildLimit;
+        while (temp->leftChildLimit != nullptr)
+            temp = temp->getLeftChildLimit();
+
+        if (rightChildLimit->getLeftChildLimit() != nullptr){ // else, then we simply set rightChildLimit as a replacement for the node
+            temp->getParentLimit()->setLeftChildLimit(temp->getRightChildLimit());  // Update temp's parent's left child
+            if (temp->getRightChildLimit()) // Update temp's right child's parent
+                temp->getRightChildLimit()->setParentLimit(temp->getParentLimit());
+            temp->setRightChildLimit(rightChildLimit);
+            rightChildLimit->setParentLimit(temp);
+        }
+        temp->setParentLimit(parentLimit);
+        temp->setLeftChildLimit(leftChildLimit);
+        leftChildLimit->setParentLimit(temp);
+        if (isLeftChild)
+            parentLimit->setLeftChildLimit(temp);
+        else
+            parentLimit->setRightChildLimit(temp);
+    }
 }
 
 void Limit::showLimit() const{

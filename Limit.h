@@ -19,7 +19,7 @@ private:
     Limit* rightChildLimit;
 
 public:
-    Limit(int _limitPrice, Side side, int _numberOfOrders = 0, int _totalShares = 0);
+    Limit(int _limitPrice, Side _side, int _numberOfOrders = 0, int _totalShares = 0);
     ~Limit();
 
     void Limit::showLimit() const;

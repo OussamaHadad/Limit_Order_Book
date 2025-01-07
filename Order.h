@@ -28,7 +28,7 @@ private:
     Order* nextOrder;   // The next order in the doubly linked list of orders of the same limit level
 
 public:
-    Order(int _idNumber, Side _side, int _orderShares, int _limitPrice, OrderType _type = OrderType::LimitOrder, TIF _tif = TIF::GTC); // Class constructor
+    Order(int _idNumber, Side _side, int _orderShares, int _limitPrice, OrderType _type = OrderType::LimitOrder, TIF _tif = TIF::GTC);
 
     int getOrderId() const;
     Side getOrderSide() const;
