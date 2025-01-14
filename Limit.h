@@ -24,7 +24,9 @@ public:
 
     void Limit::showLimit() const;
 
+    // Getters
     int getLimitPrice() const;
+    Side getSide() const;
     int getNumberOfOrders() const;
     int getTotalShares() const;
     Order* getHeadOrder() const;
@@ -33,6 +35,7 @@ public:
     Limit* getLeftChildLimit() const;
     Limit* getRightChildLimit() const;
 
+    // Setters
     void setParentLimit(Limit* parent);
     void setLeftChildLimit(Limit* leftChild);
     void setRightChildLimit(Limit* rightChild);

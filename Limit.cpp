@@ -103,6 +103,10 @@ int Limit::getLimitPrice() const{
     return limitPrice;
 }
 
+Side Limit::getSide() const{
+    return side;
+}
+
 int Limit::getNumberOfOrders() const{
     return numberOfOrders;
 }

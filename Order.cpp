@@ -58,18 +58,25 @@ void Order::showOrder() const{
 
 
 void Order::amendOrder(int newShares, int newLimitPrice){
-    // We assume the initial submission time is conserved when updating an order
-    orderShares = newShares;
-    limitPrice = newLimitPrice;
-    parentLimit = nullptr;
-    previousOrder = nullptr;
-    nextOrder = nullptr;
+    // An order is cancelled, then modified, and finally added to its limit
+    // When an order is updated, its submission time is updated
+    submissionTime = std::time(nullptr);
+
+    if (limitPrice != newLimitPrice){
+        limitPrice = newLimitPrice;
+        parentLimit->numberOfOrders -= 1;
+        parentLimit->totalShares -= orderShares;
+        parentLimit = nullptr;
+        previousOrder = nullptr;
+        nextOrder = nullptr;
+    }
+    
+    if (orderShares != newShares)
+        orderShares = newShares;
 }
 
 void Order::cancelOrder(){
-    // Note on Cancelling VS Executing an order: any order can be cancelled, BUT only the head order can be executed
-
-    parentLimit->numberOfOrders -= 1;
+    // Note on Cancelling & Executing orders: any order can be cancelled, BUT only the head order can be executed
 
     if (previousOrder != nullptr)
         previousOrder->nextOrder = nextOrder;
@@ -82,6 +89,7 @@ void Order::cancelOrder(){
         parentLimit->tailOrder = previousOrder;
     
     // Finally, we remove the traded shares from the total shares of the limit level and the order
+    parentLimit->numberOfOrders -= 1;
     parentLimit->totalShares -= orderShares;
     orderShares = 0;
 }

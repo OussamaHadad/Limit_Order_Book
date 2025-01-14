@@ -1,9 +1,7 @@
 #include <iostream>
 #include <ctime>
 
-enum class Side {Bid, Ask};    // 0 for Bid & 1 for Ask
-enum class OrderType {LimitOrder, MarketOrder, StopOrder}; // Sell/Buy at least/most at the limit price; Sell/Buy immediately; Sell/Buy immediately after the other side's price goes above/below the stop price
-enum class TIF {GTC, DAY, IOC, FOK};    // Time in force : {Good Till Cancel, Day, Immediate or Cancel Order, Fill or Kill Order}
+#include "enums.h"
 
 
 class Limit;    // We declare Limit class before defining its attributes and the prototypes of its methods in Limit.h
@@ -30,6 +28,7 @@ private:
 public:
     Order(int _idNumber, Side _side, int _orderShares, int _limitPrice, OrderType _type = OrderType::LimitOrder, TIF _tif = TIF::GTC);
 
+    // Getters
     int getOrderId() const;
     Side getOrderSide() const;
     int getOrderShares() const;
