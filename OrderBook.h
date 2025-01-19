@@ -1,6 +1,9 @@
-#include <iostream>
+#ifndef ORDERBOOK_H
+#define ORDERBOOK_H
+
 #include <unordered_map>
 
+#include "enums.h"
 
 class Limit;
 class Order;
@@ -14,13 +17,14 @@ private:
     Limit* askTree; // Ask == Sell
     Limit* lowestAsk;
     
-
-    // Stop Orders are activated, whether buy or sell, when a certain price is reached.
-    // For now, we assume stop orders can't be partially filled
+    /* Stop Orders are activated, whether buy or sell, when a certain price is reached.
+    How do Stop Orders work:
+        Stop Bid Order -> if the lowest ask price goes above this stop order's limit price, then this stop order is executed
+        Stop Ask Order -> if the highest bid price goes below ...   */
     Limit* stopBidTree;
-    Limit* lowestStopBid;
+    Limit* lowestStopBid; // triggered at a lower limit price from the Ask side, hence 1st to be executed
     Limit* stopAskTree;
-    Limit* highestStopAsk;
+    Limit* highestStopAsk; // triggered at a higher limit price from the Bid side, hence 1st to be executed
 
     // Orders are added to orderMap, and the Limits are added to either Limit Bid or Limit Ask map
     std::unordered_map<int, Order*> orderMap;
@@ -32,15 +36,16 @@ private:
     // Limit tree's methods
     void addLimit(int limitPrice, Side side); // Used when adding a limit order with a new limit price
     void deleteLimit(Limit* limit); // Used when a limit has no order left
-    void deleteFromLimitMaps(int limitPrice, Side side);
 
     // Stop tree's methods
     Limit* insertNewStop(Limit* root, Limit* newStop, Limit* parentStop = nullptr); // Used in addStopLevel(...) to insert new Stops in the one of the two stop trees
     void addStopLevel(int stopPrice, Side side); // Add a new stop price
     void deleteStopLevel(Limit* stopLevel);
 
-    void stopOrderToLimitOrder(Order* Order, Side side); // Used 
+    void stopOrderToLimitOrder(Order* Order, Side side); 
     void executeStopOrders(Side side); // Used for both limit and stop orders
+
+    Limit* insertNewLevel(Limit* root, Limit* newLevel, Limit* parentLevel, limitORstop limit_or_stop);
 
     // AVL Tree methods; Note: OrderBook is an AVL Tree
     int limitHeightDifference(Limit* limit) const;
@@ -50,6 +55,9 @@ private:
     Limit* lRotate(Limit* parentLimit, limitORstop limit_or_stop);
     Limit* lrRotate(Limit* parentLimit, limitORstop limit_or_stop);
     Limit* rlRotate(Limit* parentLimit, limitORstop limit_or_stop);
+
+    void updateBookRoot(Limit* level, limitORstop limit_or_stop);
+    void updateBookEdge(Limit* level, limitORstop limit_or_stop);
 
 public:
     OrderBook();
@@ -77,16 +85,17 @@ public:
     void modifyLimitOrder(int orderId, int newShares, int newLimitPrice);
 
     // Stop order methods
-    int addStopOrder(int orderId, Side side, int stopPrice, int shares); // Once stopPrice is reached the order is executed with the market price
+    void addStopOrder(int orderId, Side side, int stopPrice, int shares); // Once stopPrice is reached the order is executed with the market price
     void cancelStopOrder(int orderId);
     void modifyStopOrder(int orderId, int newShares, int newstopPrice);
 
     // Market orders are executed immediately after adding them, hence it's not possible to cancel or modify them
     // We assume a market order is filled completely or partially, and then removed
-    void executeMarketOrder(Side side, int shares);
-    void addMarketOrder(int orderId, Side side, int shares);
+    void executeMarketOrder(Side side, int& shares);
+    void addMarketOrder(Side side, int shares);
 
     // AVL Tree methods
     int getLimitHeight(Limit* limit) const;
-
 };
+
+#endif

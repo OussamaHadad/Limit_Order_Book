@@ -1,8 +1,50 @@
-#include<algorithm>
+#include <algorithm>
 
 #include "enums.h"
 #include "Limit.h"
 #include "OrderBook.h"
+
+
+void OrderBook::updateBookRoot(Limit* level, limitORstop limit_or_stop){
+    /* If level (limit or stop) is deleted and it is the root of one of the bid/ask trees, 
+    this function is used to update the root of the corresponding tree */
+
+    Limit* treeRoot = (limit_or_stop == limitORstop::limit) ? 
+                            ((level->getSide() == Side::Bid) ? bidTree : askTree) 
+                        :
+                            ((level->getSide() == Side::Bid) ? stopBidTree : stopAskTree);
+
+    if (level == treeRoot){
+
+        if (treeRoot->getRightChildLimit() == nullptr)
+            treeRoot = treeRoot->getLeftChildLimit();
+
+        else{ // The root node has both a left and a right child, hence the new root will be the most left child of its right subtree
+            treeRoot = treeRoot->getRightChildLimit();
+            
+            while (treeRoot->getLeftChildLimit() != nullptr)
+                treeRoot = treeRoot->getLeftChildLimit();
+        }
+    }
+}
+
+void OrderBook::updateBookEdge(Limit* level, limitORstop limit_or_stop){
+    // If the book edge is empty, this function replaces it with the next book edge in the order of Limits
+
+    Limit* bookEdge = (limit_or_stop == limitORstop::limit) ? 
+                            ((level->getSide() == Side::Bid) ? bidTree : askTree) 
+                        :
+                            ((level->getSide() == Side::Bid) ? stopBidTree : stopAskTree);
+
+    if (level == bookEdge){
+        if (level->getSide() == Side::Bid && level->getLeftChildLimit() != nullptr) // bookedge from buy side can't have a right child
+            bookEdge = level->getLeftChildLimit();
+        else if (level->getSide() == Side::Ask && level->getRightChildLimit() != nullptr) // bookedge from buy side can't have a left child
+            bookEdge = level->getRightChildLimit();
+        else
+            bookEdge = level->getParentLimit();
+    }
+}
 
 
 int OrderBook::getLimitHeight(Limit* limit) const{

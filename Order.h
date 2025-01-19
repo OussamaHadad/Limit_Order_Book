@@ -1,4 +1,6 @@
-#include <iostream>
+#ifndef ORDER_H
+#define ORDER_H
+
 #include <ctime>
 
 #include "enums.h"
@@ -45,5 +47,4 @@ public:
     void executeOrder(int tradedShares);
 };
 
-
-
+#endif

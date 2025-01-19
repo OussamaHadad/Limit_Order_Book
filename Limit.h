@@ -1,4 +1,5 @@
-#include <iostream>
+#ifndef LIMIT_H
+#define LIMIT_H
 
 
 class Order;    // We declare Order class before defining its attributes and the prototypes of its methods in Order.h
@@ -42,3 +43,5 @@ public:
 
     void addOrder(Order* _order);   // add an order to the limit level
 };
+
+#endif

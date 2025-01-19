@@ -95,6 +95,9 @@ void Order::cancelOrder(){
 }
 
 void Order::executeOrder(int tradedShares){ // This implementatiion considers only Limit Orders
+    /* Arguments:
+        tradedShares (int): the number of shares from the other side of the book that will be traded */
+        
     assert(tradedShares <= orderShares && "Error: The number of traded shares exceeds the number of order shares");
     
     // When executing an order there are two possibilities: Full execution OR Partial execution
