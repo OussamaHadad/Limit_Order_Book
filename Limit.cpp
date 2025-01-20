@@ -9,9 +9,9 @@ Limit::Limit(int _limitPrice, Side _side, int _numberOfOrders, int _totalShares)
     {}
 
 Limit::~Limit(){
-    /* Destructor for a Limit node in an Order Book AVL Tree
-    When deleting a node from a Tree we face 3 cases: the node has no children (leaf node), or it has one child node, or it has 2 child nodes 
-    This decstructor replaces the node by the bottom left node from its right subtree   */
+    /* Destructor of Limit level from the Order Book AVL tree
+    When deleting a Limit level we face 3 cases: the Limit has no children (leaf node), or it has one child node, or it has 2 child nodes 
+    This decstructor replaces the destructed node by the bottom left node of its right subtree  */
 
     if (parentLimit == nullptr){ // The Root node
         // Case 1: Node has at most one child node
@@ -150,10 +150,11 @@ void Limit::setRightChildLimit(Limit* newRightChildLimit){
 void Limit::addOrder(Order* order){
     if (headOrder == nullptr)
         headOrder = tailOrder = order;
-    else{   // _order is the new tailOrder of this limit level
+    else{   // order is the new tailOrder of this limit level
         tailOrder->nextOrder = order;
         order->previousOrder = tailOrder;
         order->nextOrder = nullptr;
+        tailOrder = order;
     }
     ++numberOfOrders;
     totalShares += order->getOrderShares();

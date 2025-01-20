@@ -28,7 +28,8 @@ void OrderBook::updateTreeRoot(Limit* level, limitORstop limit_or_stop){
 }
 
 void OrderBook::updateBookEdge(Limit* level, limitORstop limit_or_stop){
-    // If the book edge is empty, this function replaces it with the next book edge in the order of Limits
+    /* This function replaces the current book edge with the next book edge given the order of Limits. 
+    It is used right before deleting the book edge */
 
     auto& bookEdge = (limit_or_stop == limitORstop::limit) ? 
                             ((level->getSide() == Side::Bid) ? bidTree : askTree) 

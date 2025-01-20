@@ -101,7 +101,6 @@ void OrderBook::stopOrderToLimitOrder(Order* order, Side side){
 
         limitMap[order->getLimitPrice()]->addOrder(order);
     }
-    
 }
 
 // Execute orders method
@@ -110,24 +109,38 @@ void OrderBook::executeStopOrders(Side side){
         If a stop order is partially executed, then we make a limit order from the remaining shares */
     if (side == Side::Bid){
         while (lowestStopBid != nullptr && lowestAsk != nullptr && lowestStopBid->getLimitPrice() <= lowestAsk->getLimitPrice()){
-            
             Order* headOrder = lowestStopBid->getHeadOrder();
 
-            int tradedShares = std::min(headOrder->getOrderShares(), lowestStopBid->getTotalShares());
-
+            int tradedShares = std::min(headOrder->getOrderShares(), lowestAsk->getTotalShares());
             headOrder->executeOrder(tradedShares);
-            
-            if (tradedShares == lowestStopBid->getTotalShares()){
-                // TO DO: Find new lowestStopBid before deleting it
-                deleteLevel(lowestStopBid, limitORstop::stop);
-                // TO DO: lowestStopBid = new lowestStopBid;
+
+            while (tradedShares > 0 && lowestAsk->getHeadOrder() != nullptr){
+                Order* askHeadOrder = lowestAsk->getHeadOrder();
+                int _tradedShares = std::min(askHeadOrder->getOrderShares(), tradedShares);
+                askHeadOrder->executeOrder(_tradedShares);
+                tradedShares -= _tradedShares;
+                
+                if (askHeadOrder->getOrderShares() == 0){
+                    orderMap.erase(askHeadOrder->getOrderId());
+                    askHeadOrder->cancelOrder();
+                    delete askHeadOrder;
+                }
             }
-            
-            if (tradedShares == headOrder->getOrderShares()){
+
+            if (lowestAsk->getHeadOrder() == nullptr){
+                updateBookEdge(lowestAsk, limitORstop::limit);
+                deleteLevel(lowestAsk, limitORstop::limit);
+            }
+
+           if (tradedShares == headOrder->getOrderShares()){
                 orderMap.erase(headOrder->getOrderId());
-                // TO DO: Find new headOrder before deleting it
+                headOrder->cancelOrder(); // We cancel headOrder in order to update both head and tail orders of lowestStopBid
                 delete headOrder;
-                // TO DO: headOrder = new headOrder;
+
+                if (lowestStopBid->getHeadOrder() == nullptr){
+                    updateBookEdge(lowestStopBid, limitORstop::stop);
+                    deleteLevel(lowestStopBid, limitORstop::stop);
+                }
             }
             else    
                 stopOrderToLimitOrder(headOrder, side);
@@ -135,24 +148,38 @@ void OrderBook::executeStopOrders(Side side){
     }
     else{ // side == Side::Ask
         while (highestStopAsk != nullptr && highestBid != nullptr && highestStopAsk->getLimitPrice() >= highestBid->getLimitPrice()){
-            
             Order* headOrder = highestStopAsk->getHeadOrder();
 
-            int tradedShares = std::min(headOrder->getOrderShares(), highestStopAsk->getTotalShares());
-
+            int tradedShares = std::min(headOrder->getOrderShares(), highestBid->getTotalShares());
             headOrder->executeOrder(tradedShares);
             
-            if (tradedShares == highestStopAsk->getTotalShares()){
-                // TO DO: Find new highestStopAsk before deleting it
-                deleteLevel(highestStopAsk, limitORstop::stop);
-                // TO DO: highestStopAsk = new highestStopAsk;
+            while (tradedShares > 0 && highestBid->getHeadOrder() != nullptr){
+                Order* askHeadOrder = highestBid->getHeadOrder();
+                int _tradedShares = std::min(askHeadOrder->getOrderShares(), tradedShares);
+                askHeadOrder->executeOrder(_tradedShares);
+                tradedShares -= _tradedShares;
+                
+                if (askHeadOrder->getOrderShares() == 0){
+                    orderMap.erase(askHeadOrder->getOrderId());
+                    askHeadOrder->cancelOrder();
+                    delete askHeadOrder;
+                }
             }
 
-            if (tradedShares == headOrder->getOrderShares()){
+            if (highestBid->getHeadOrder() == nullptr){
+                updateBookEdge(highestBid, limitORstop::limit);
+                deleteLevel(highestBid, limitORstop::limit);
+            }
+
+           if (tradedShares == headOrder->getOrderShares()){
                 orderMap.erase(headOrder->getOrderId());
-                // TO DO: Find new headOrder before deleting it
+                headOrder->cancelOrder(); // We cancel headOrder in order to update both head and tail orders of lowestStopBid
                 delete headOrder;
-                // TO DO: headOrder = new headOrder;
+
+                if (lowestStopBid->getHeadOrder() == nullptr){
+                    updateBookEdge(highestStopAsk, limitORstop::stop);
+                    deleteLevel(highestStopAsk, limitORstop::stop);
+                }
             }
             else    
                 stopOrderToLimitOrder(headOrder, side);
@@ -199,9 +226,10 @@ void OrderBook::addStopLevel(int stopPrice, Side side){
 
     if (stopTree == nullptr) // There is no stop level in this tree yet 
         stopTree = bookEdge = newStop;
-    else{ // There are stop levels in this tree, and this stopPrice should be inserted in the corresponding tree
+    else{
+        // Update tree's root if needed
         Limit* unused = insertNewLevel(stopTree, newStop, nullptr, limitORstop::stop);
-         
+        // Update book's edge if needed
         if (side == Side::Bid){ // Then update the book edge
             if (stopPrice < lowestStopBid->getLimitPrice())
                 lowestStopBid = newStop;
@@ -216,8 +244,8 @@ void OrderBook::addStopLevel(int stopPrice, Side side){
 
 // Limit and Stop trees' shared methods
 Limit* OrderBook::insertNewLevel(Limit* root, Limit* newLevel, Limit* parentLevel, limitORstop limit_or_stop){
-    /* Recursive function used to insert a new stop level in the Bid/Ask stop AVL tree
-    Returns the root of the tree (or sub-tree for recursive calls) where newLevel (new Stop or a new Limit) is inserted. */
+    /* Recursive function used to insert a new limit/stop level in the Bid/Ask limit/stop AVL tree.
+    Returns the root of the tree (or sub-tree for recursive calls) where newLevel (stop or a limit) is inserted. */
 
     if (root == nullptr){ // First stop level to insert in this stop tree
         newLevel->setParentLimit(parentLevel); 
@@ -266,7 +294,7 @@ void OrderBook::deleteLevel(Limit* level, limitORstop limit_or_stop){
 
 // Limit order methods
 void OrderBook::addLimitOrder(int orderId, Side side, int limitPrice, int shares){
-    // We trade the biggest possible number of shares, and then we make a limit order using the remaining shares
+    // We trade the biggest possible number of shares, and then we make a limit order from the remaining shares
     if (side == Side::Bid){
         while (shares != 0 && lowestAsk != nullptr && limitPrice >= lowestAsk->getLimitPrice())
             executeMarketOrder(side, shares);
@@ -327,18 +355,14 @@ void OrderBook::modifyLimitOrder(int orderId, int newShares, int newLimitPrice){
 
 
 // Stop order methods
-void OrderBook::addStopOrder(int orderId, Side side, int stopPrice, int shares){
-    // Note: If a stop order isn't completely executed, it is conserved with the remaining number of shares
-    
-    // First, we try to execute the stop order if possible
-    if (side == Side::Bid && lowestAsk != nullptr && stopPrice <= lowestAsk->getLimitPrice()){ // the last condition triggers the stop order
+void OrderBook::addStopOrder(int orderId, Side side, int stopPrice, int shares){    
+    // First, we execute the stop order if possible, and then we make a new stop order from the remaining shares
+    if (side == Side::Bid && lowestAsk != nullptr && stopPrice <= lowestAsk->getLimitPrice()) // the last condition triggers the stop order
         executeMarketOrder(side, shares);
-    }
-    else if (side == Side::Ask && highestBid != nullptr && stopPrice >= highestBid->getLimitPrice()){ // ...
+    else if (side == Side::Ask && highestBid != nullptr && stopPrice >= highestBid->getLimitPrice()) // ...
         executeMarketOrder(side, shares);
-    }
 
-    if (shares != 0){ // The remaining shares can be turned into a stop order
+    if (shares != 0){ // The remaining shares are turned into a stop order
         Order* newOrder = new Order(orderId, side, shares, stopPrice);
         assert(newOrder != nullptr && "Error: This order Id doesn't exist");
         orderMap.emplace(orderId, newOrder);
@@ -397,13 +421,15 @@ void OrderBook::executeMarketOrder(Side side, int& shares){
 
         if (headOrder->getOrderShares() == 0){ // headOrder was completely executed
             orderMap.erase(headOrder->getOrderId());
-            // TO DO: Find new headOrder
+            headOrder->cancelOrder(); // We cancel headOrder in order to update both head and tail orders of bookEdge
             delete headOrder;
-            // TO DO: Assign new headOrder
 
-            if (bookEdge->getNumberOfOrders() == 0) // this limit level has no more orders left
-                // TO DO: Update bookEdge
-                deleteLevel(bookEdge, limitORstop::limit);
+            if (bookEdge->getNumberOfOrders() == 0){
+                // This limit level has no more orders left, hence we move to the next book edge, and the current is deleted 
+                Limit* prevBookEdge = bookEdge;
+                updateBookEdge(bookEdge, limitORstop::limit);
+                deleteLevel(prevBookEdge, limitORstop::limit);
+            }
         }
     }
 }
@@ -411,7 +437,7 @@ void OrderBook::executeMarketOrder(Side side, int& shares){
 void OrderBook::addMarketOrder(Side side, int shares){
     // First, we execute the market order
     executeMarketOrder(side, shares);
-    // Then we see if the changes that happened to the order book can trigger a stop order
+    // Then we check if any stop orders were triggered after the order book was updated
     executeStopOrders(side);
 }
 

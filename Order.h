@@ -22,6 +22,7 @@ private:
     std::time_t submissionTime;
 
     // The following attributes are introduced to improve the time complexity of recurrent manipulations
+    //      nextOrder  -> Order ->  previousOrder   ; next is next to be executed   &   previous is previously executed
     Limit* parentLimit; // The limit (or limit level) to which the order belongs
     Order* previousOrder;   // The previous order in the doubly linked list of orders of the same limit level
     Order* nextOrder;   // The next order in the doubly linked list of orders of the same limit level

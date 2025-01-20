@@ -58,17 +58,18 @@ void Order::showOrder() const{
 
 
 void Order::amendOrder(int newShares, int newLimitPrice){
-    // An order is cancelled, then modified, and finally added to its limit
-    // When an order is updated, its submission time is updated
+    /* An order is cancelled, then modified, and finally added to its limit
+    When an order is updated, its submission time is updated */
     submissionTime = std::time(nullptr);
 
     if (limitPrice != newLimitPrice){
         limitPrice = newLimitPrice;
         parentLimit->numberOfOrders -= 1;
         parentLimit->totalShares -= orderShares;
+        
+        // The following pointers will be updated after calling this method in the order book using Limit::addOrder(Order* order)
         parentLimit = nullptr;
-        previousOrder = nullptr;
-        nextOrder = nullptr;
+        previousOrder = nextOrder = nullptr;
     }
     
     if (orderShares != newShares)

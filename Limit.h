@@ -12,8 +12,10 @@ private:
     Side side; // side of the trade, bid or ask
     int numberOfOrders; // number of orders in the limit
     int totalShares; // total number of shares in the limit (sum of shares of all orders)
+    
     Order* headOrder;   // head of the linked list of orders of the limit; The first order to be executed within the limit orders of the limit
     Order* tailOrder;
+    
     Limit* parentLimit;
     Limit* leftChildLimit;
     Limit* rightChildLimit;
@@ -40,7 +42,7 @@ public:
     void setLeftChildLimit(Limit* leftChild);
     void setRightChildLimit(Limit* rightChild);
 
-    void addOrder(Order* _order);   // add an order of limit price limitPrice to this limit level
+    void addOrder(Order* order);   // add an order of limit price limitPrice to this limit level
 };
 
 #endif
