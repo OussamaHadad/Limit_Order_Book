@@ -9,10 +9,9 @@
 class Limit;    // We declare Limit class before defining its attributes and the prototypes of its methods in Limit.h
 
 class Order {
-    
+private:
     friend class Limit; // Limit class is a friend of Order class, thus it can access the private attributes of Order class
 
-private:
     // Following are the primary attributes of an order
     int idNumber;
     Side side;
@@ -35,10 +34,10 @@ public:
     Side getOrderSide() const;
     int getOrderShares() const;
     int getLimitPrice() const;
-    OrderType getOrderType() const;
-    TIF getTIF() const;
     Limit* getParentLimit() const;
     Order* getNextOrder() const;
+    OrderType getOrderType() const;
+    TIF getTIF() const;
 
     void showOrder() const;
 

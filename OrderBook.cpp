@@ -13,8 +13,7 @@ OrderBook::OrderBook():
     {}
 
 OrderBook::~OrderBook(){
-    // When deleting the order book, we should go through each order (limit or stop) and each limit in the corresponding map and delete it
-    
+    // When destructing the order book, we go through every limit/stop order and every limit/stop level from their map and delete it
     for (auto& pair : orderMap) // pair.first = orderId && pair.second = order
         delete pair.second;
 
@@ -81,20 +80,21 @@ void OrderBook::setStopAskTree(Limit* newStopAskTree){
 }
 
 
+// Auxiliary methods used inside other methods
 void OrderBook::stopOrderToLimitOrder(Order* order, Side side){
     /* Turn a stop limit order into a limit order.
-    First, we see if the stop limit order can be executed, and only then we turn the remaining shares into a limit order */
-    
-    Limit* bookEdge = (side == Side::Bid) ? lowestStopBid : highestStopAsk;
+    First, we execute the stop limit order if possible, and then we add a limit order using the remaining number of shares */
+
+    auto& bookEdge = (side == Side::Bid) ? lowestStopBid : highestStopAsk;
 
     int tradedShares = std::min(order->getOrderShares(), bookEdge->getTotalShares());
     order->executeOrder(tradedShares);
 
     if (tradedShares == bookEdge->getTotalShares()) // All shares from the current book edge were traded, hence delete the book edge limit
-        deleteStopLevel(bookEdge);
+        deleteLevel(bookEdge, limitORstop::stop);
 
     if (order->getOrderShares() != 0){
-        auto limitMap = (side == Side::Bid) ? limitBidMap : limitAskMap;
+        auto& limitMap = (side == Side::Bid) ? limitBidMap : limitAskMap;
 
         if (limitMap.find(order->getLimitPrice()) == limitMap.end())
             addLimit(order->getLimitPrice(), side);
@@ -106,28 +106,30 @@ void OrderBook::stopOrderToLimitOrder(Order* order, Side side){
 
 // Execute orders method
 void OrderBook::executeStopOrders(Side side){
-    /*  This function goes through the Stop orders map and executes the triggered stop orders   */
+    /* We go through Stop orders and execute those that were triggered if there are enough shares in the order book
+        If a stop order is partially executed, then we make a limit order from the remaining shares */
     if (side == Side::Bid){
-        while (lowestStopBid != nullptr && (lowestAsk == nullptr || lowestStopBid->getLimitPrice() <= lowestAsk->getLimitPrice())){
+        while (lowestStopBid != nullptr && lowestAsk != nullptr && lowestStopBid->getLimitPrice() <= lowestAsk->getLimitPrice()){
             
             Order* headOrder = lowestStopBid->getHeadOrder();
 
-            if (headOrder->getLimitPrice() != 0){ // i.e: no order is left at this limit level as only the predefined empty orders have 0 as a price
-                int tradedShares = std::min(headOrder->getOrderShares(), lowestStopBid->getTotalShares());
+            int tradedShares = std::min(headOrder->getOrderShares(), lowestStopBid->getTotalShares());
 
-                headOrder->executeOrder(tradedShares);
-                
-                if (tradedShares == lowestStopBid->getTotalShares())
-                    deleteStopLevel(lowestStopBid);
-                
-                if (tradedShares == headOrder->getOrderShares()){
-                    orderMap.erase(headOrder->getOrderId());
-                    delete headOrder;
-                }
-
-                //executeMarketOrder(side, shares);
+            headOrder->executeOrder(tradedShares);
+            
+            if (tradedShares == lowestStopBid->getTotalShares()){
+                // TO DO: Find new lowestStopBid before deleting it
+                deleteLevel(lowestStopBid, limitORstop::stop);
+                // TO DO: lowestStopBid = new lowestStopBid;
             }
-            else
+            
+            if (tradedShares == headOrder->getOrderShares()){
+                orderMap.erase(headOrder->getOrderId());
+                // TO DO: Find new headOrder before deleting it
+                delete headOrder;
+                // TO DO: headOrder = new headOrder;
+            }
+            else    
                 stopOrderToLimitOrder(headOrder, side);
         }
     }
@@ -136,22 +138,23 @@ void OrderBook::executeStopOrders(Side side){
             
             Order* headOrder = highestStopAsk->getHeadOrder();
 
-            if (headOrder->getOrderShares() != 0){ // i.e: no order is left at this limit level as only the predefined empty orders have 0 as a price
-                int tradedShares = std::min(headOrder->getOrderShares(), highestStopAsk->getTotalShares());
+            int tradedShares = std::min(headOrder->getOrderShares(), highestStopAsk->getTotalShares());
 
-                headOrder->executeOrder(tradedShares);
-                
-                if (tradedShares == highestStopAsk->getTotalShares())
-                    deleteStopLevel(highestStopAsk);
-
-                if (tradedShares == headOrder->getOrderShares()){
-                    orderMap.erase(headOrder->getOrderId());
-                    delete headOrder;
-                }
-
-                //executeMarketOrder(side, shares);
+            headOrder->executeOrder(tradedShares);
+            
+            if (tradedShares == highestStopAsk->getTotalShares()){
+                // TO DO: Find new highestStopAsk before deleting it
+                deleteLevel(highestStopAsk, limitORstop::stop);
+                // TO DO: highestStopAsk = new highestStopAsk;
             }
-            else
+
+            if (tradedShares == headOrder->getOrderShares()){
+                orderMap.erase(headOrder->getOrderId());
+                // TO DO: Find new headOrder before deleting it
+                delete headOrder;
+                // TO DO: headOrder = new headOrder;
+            }
+            else    
                 stopOrderToLimitOrder(headOrder, side);
         }
     }
@@ -159,11 +162,63 @@ void OrderBook::executeStopOrders(Side side){
 
 
 // Limit tree's methods
+void OrderBook::addLimit(int limitPrice, Side side){
+    // Add a new limit level to its limit map and limit tree, then check if it can its book's new edge
+    auto& limitMap = (side == Side::Bid) ? limitBidMap : limitAskMap;
+    auto& tree = (side == Side::Bid) ? bidTree : askTree;
+    auto& bookEdge = (side == Side::Bid) ? highestBid : lowestAsk;
 
+    Limit* newLimit = new Limit(limitPrice, side);
+    limitMap.emplace(limitPrice, newLimit);
+
+    if (tree == nullptr) // This limit's tree is empty
+        tree = bookEdge = newLimit;
+    else{
+        // Update tree's root if needed
+        Limit* unused = insertNewLevel(tree, newLimit, nullptr, limitORstop::limit);
+        // Update book's edge if needed
+        if (side == Side::Bid){
+            if (highestBid->getLimitPrice() < limitPrice)
+                highestBid = newLimit;
+        }
+        else{ // Side::Limit
+            if (lowestAsk->getLimitPrice() > limitPrice)
+                lowestAsk = newLimit;
+        }
+    }
+}
+
+
+// Stop tree's methods
+void OrderBook::addStopLevel(int stopPrice, Side side){
+    auto& stopTree = (side == Side::Bid) ? stopBidTree : stopAskTree;
+    auto& bookEdge = (side == Side::Bid) ? lowestStopBid : highestStopAsk;
+
+    Limit* newStop = new Limit(stopPrice, side);
+    stopMap.emplace(stopPrice, newStop);
+
+    if (stopTree == nullptr) // There is no stop level in this tree yet 
+        stopTree = bookEdge = newStop;
+    else{ // There are stop levels in this tree, and this stopPrice should be inserted in the corresponding tree
+        Limit* unused = insertNewLevel(stopTree, newStop, nullptr, limitORstop::stop);
+         
+        if (side == Side::Bid){ // Then update the book edge
+            if (stopPrice < lowestStopBid->getLimitPrice())
+                lowestStopBid = newStop;
+        }
+        else{
+            if (stopPrice > highestStopAsk->getLimitPrice())
+                highestStopAsk = newStop;
+        }
+    }
+}
+
+
+// Limit and Stop trees' shared methods
 Limit* OrderBook::insertNewLevel(Limit* root, Limit* newLevel, Limit* parentLevel, limitORstop limit_or_stop){
-    /* Recursive function used to insert a new stop level in the Bid or Ask stop AVL tree
-    Returns the root of the tree (or sub-tree for recursive calls) where newLevel is inserted. 
-    Note: newLevel is either a new Stop or a new Limit */
+    /* Recursive function used to insert a new stop level in the Bid/Ask stop AVL tree
+    Returns the root of the tree (or sub-tree for recursive calls) where newLevel (new Stop or a new Limit) is inserted. */
+
     if (root == nullptr){ // First stop level to insert in this stop tree
         newLevel->setParentLimit(parentLevel); 
         return newLevel;
@@ -179,126 +234,26 @@ Limit* OrderBook::insertNewLevel(Limit* root, Limit* newLevel, Limit* parentLeve
     return root;
 }
 
-void OrderBook::addLimit(int limitPrice, Side side){
-    // When adding a new limit, in addition to adding it to the new limit map and limit tree, we check if it can be the new book edge
-    auto& limitMap = (side == Side::Bid) ? limitBidMap : limitAskMap;
-    Limit* tree = (side == Side::Bid) ? bidTree : askTree;
-    Limit* bookEdge = (side == Side::Bid) ? highestBid : lowestAsk;
+void OrderBook::deleteLevel(Limit* level, limitORstop limit_or_stop){
+    /* When deleting a stop/limit level we do the following (all if needed):
+            Update book edge  ->  Update tree root  ->  Rebalance AVL tree -&- Update parent/children of connected nodes */
 
-    Limit* newLimit = new Limit(limitPrice, side);
-    limitMap.emplace(limitPrice, newLimit);
+    updateBookEdge(level, limit_or_stop);
+    updateTreeRoot(level, limit_or_stop);
 
-    if (tree == nullptr){
-        tree = bookEdge = newLimit;
-    }
-    else{
-        // Check if tree root should be updated, and update it if needed
-        Limit* unused = insertNewLevel(tree, newLimit, nullptr, limitORstop::limit);
-        // Check if book edge should be updated, and update it if needed
-        if (side == Side::Bid){
-            if (highestBid->getLimitPrice() < limitPrice)
-                highestBid = newLimit;
-        }
-        else{ // Side::Limit
-            if (lowestAsk->getLimitPrice() > limitPrice)
-                lowestAsk = newLimit;
-        }
-    }
-}
+    Limit* parentLimit = level->getParentLimit();
+    int levelPrice = level->getLimitPrice();
 
-void OrderBook::deleteLimit(Limit* limit){
-    /* When deleting a stop/limit level we make sure to update book edge and root if this limit corresponds to one or both,
-    and then we rebalance and update the parent/children of connected nodes if needed */
-
-    updateBookEdge(limit, limitORstop::limit);
-    updateBookRoot(limit, limitORstop::limit);
-
-    Limit* parentLimit = limit->getParentLimit();
-    int limitPrice = limit->getLimitPrice();
-
-    (limit->getSide() == Side::Bid) ? limitBidMap.erase(limitPrice) : limitAskMap.erase(limitPrice);
-    delete limit;
-
-    while (parentLimit != nullptr){
-        parentLimit = balanceTree(parentLimit, limitORstop::limit);
-        
-        if (parentLimit->getParentLimit() != nullptr){
-
-            if (parentLimit->getParentLimit()->getLimitPrice() > limitPrice)
-                parentLimit->getParentLimit()->setLeftChildLimit(parentLimit);
-            else
-                parentLimit->getParentLimit()->setRightChildLimit(parentLimit);
-        }
-
-        parentLimit = parentLimit->getParentLimit();
-    }
-}
-
-
-// Stop tree's methods
-
-/* Limit* OrderBook::insertNewStop(Limit* root, Limit* newStop, Limit* parentStop){
-    // Recursive function used to insert a new stop level in the Bid or Ask stop AVL tree
-    //Returns the root of the Stop tree (or sub-tree for recursive calls) newStop is inserted in.
-    if (root == nullptr){ // First stop level to insert in this stop tree
-        newStop->setParentLimit(parentStop); 
-        return newStop;
-    }
-    else if (newStop->getLimitPrice() < root->getLimitPrice()){ // then move to the left subtree
-        root->setLeftChildLimit(insertNewStop(root->getLeftChildLimit(), newStop, root));
-        root = balanceTree(root, limitORstop::stop);
-    }
-    else if (newStop->getLimitPrice() > root->getLimitPrice()){ // then move to the right subtree
-        root->setRightChildLimit(insertNewStop(root->getRightChildLimit(), newStop, root));
-        root = balanceTree(root, limitORstop::stop);
-    }
-    return root;
-} */
-
-void OrderBook::addStopLevel(int stopPrice, Side side){
-    auto* stopTree = (side == Side::Bid) ? stopBidTree : stopAskTree;
-    auto* bookEdge = (side == Side::Bid) ? lowestStopBid : highestStopAsk;
-
-    Limit* newStop = new Limit(stopPrice, side);
-    stopMap.emplace(stopPrice, newStop);
-
-    if (stopTree == nullptr){ // i.e: There is no stop level in this tree yet 
-        stopTree = newStop;
-        bookEdge = newStop;
-    }
-    else{ // There are stop levels in this tree, and this stopPrice should be inserted in the corresponding tree
-        Limit* unused = insertNewLevel(stopTree, newStop, nullptr, limitORstop::stop);
-         
-        if (side == Side::Bid){ // Then update the book edge
-            if (stopPrice < lowestStopBid->getLimitPrice())
-                lowestStopBid = newStop;
-        }
-        else{
-            if (stopPrice > highestStopAsk->getLimitPrice())
-                highestStopAsk = newStop;
-        }
-    }
-}
-
-void OrderBook::deleteStopLevel(Limit* stopLevel){
-    /* When deleting a stop/limit level we make sure to update book edge and root if this limit corresponds to one or both,
-    and then we rebalance and update the parent/children of connected nodes if needed */
-
-    updateBookEdge(stopLevel, limitORstop::stop);
-    updateBookRoot(stopLevel, limitORstop::stop);
-
-    Limit* parentLimit = stopLevel->getParentLimit();
-    int stopPrice = stopLevel->getLimitPrice();
-
-    stopMap.erase(stopPrice);
-    delete stopLevel;
+    (limit_or_stop == limitORstop::stop) ? stopMap.erase(levelPrice) 
+        : (level->getSide() == Side::Bid) ? limitBidMap.erase(levelPrice) : limitAskMap.erase(levelPrice);
+    delete level;
 
     while (parentLimit != nullptr){
         parentLimit = balanceTree(parentLimit, limitORstop::stop);
         
         if (parentLimit->getParentLimit() != nullptr){
 
-            if (parentLimit->getParentLimit()->getLimitPrice() > stopPrice)
+            if (parentLimit->getParentLimit()->getLimitPrice() > levelPrice)
                 parentLimit->getParentLimit()->setLeftChildLimit(parentLimit);
             else
                 parentLimit->getParentLimit()->setRightChildLimit(parentLimit);
@@ -311,34 +266,29 @@ void OrderBook::deleteStopLevel(Limit* stopLevel){
 
 // Limit order methods
 void OrderBook::addLimitOrder(int orderId, Side side, int limitPrice, int shares){
-    /* First, we trade the biggest possible number of shares (0 if the order doesn't match the best bid/ask),
-    and then, the remaining left are used to make a limit order */
+    // We trade the biggest possible number of shares, and then we make a limit order using the remaining shares
     if (side == Side::Bid){
-        while (lowestAsk != nullptr && shares != 0 && limitPrice >= lowestAsk->getLimitPrice()){
+        while (shares != 0 && lowestAsk != nullptr && limitPrice >= lowestAsk->getLimitPrice())
             executeMarketOrder(side, shares);
-        }
     }   
     else{ // side == Side::Ask
-        while (highestBid != nullptr && shares != 0 && limitPrice <= highestBid->getLimitPrice()){
+        while (shares != 0 && highestBid != nullptr && limitPrice <= highestBid->getLimitPrice())
             executeMarketOrder(side, shares);
-        }
     }
 
-    if (shares != 0){ // some (or all) shares are left
+    if (shares != 0){ // some or all shares are left
         Order* newOrder = new Order(orderId, side, shares, limitPrice);
         orderMap.emplace(orderId, newOrder);
 
         auto& limitMap = (side == Side::Bid) ? limitBidMap : limitAskMap;
 
-        if (limitMap.find(limitPrice) == limitMap.end()){
+        if (limitMap.find(limitPrice) == limitMap.end())
             addLimit(limitPrice, side);
-        }
         
         limitMap[limitPrice]->addOrder(newOrder);
     }
-    else{ // all shares were traded, then we can see if some stop orders can be executed
+    else // all shares were traded, hence we check if some stop orders can be executed now that the order book was updated
         executeStopOrders(side);
-    }
 }
 
 void OrderBook::cancelLimitOrder(int orderId){
@@ -348,7 +298,7 @@ void OrderBook::cancelLimitOrder(int orderId){
     order->cancelOrder();
     
     if (order->getParentLimit()->getNumberOfOrders() == 0)
-        deleteLimit(order->getParentLimit());
+        deleteLevel(order->getParentLimit(), limitORstop::limit);
     
     orderMap.erase(orderId);
     delete order; 
@@ -362,7 +312,7 @@ void OrderBook::modifyLimitOrder(int orderId, int newShares, int newLimitPrice){
 
     Limit* parentLimit = order->getParentLimit();
     if (parentLimit->getNumberOfOrders() == 0)
-        deleteLimit(parentLimit);
+        deleteLevel(parentLimit, limitORstop::limit);
 
     order->amendOrder(newShares, newLimitPrice);
 
@@ -407,7 +357,7 @@ void OrderBook::cancelStopOrder(int orderId){
     order->cancelOrder();
     
     if (order->getParentLimit()->getNumberOfOrders() == 0)
-        deleteStopLevel(order->getParentLimit());
+        deleteLevel(order->getParentLimit(), limitORstop::stop);
     
     orderMap.erase(orderId);
     delete order; 
@@ -423,7 +373,7 @@ void OrderBook::modifyStopOrder(int orderId, int newShares, int newstopPrice){
 
     order->cancelOrder();
     if (parentLimit->getNumberOfOrders() == 0)
-        deleteStopLevel(parentLimit);
+        deleteLevel(parentLimit, limitORstop::stop);
 
     order->amendOrder(newShares, newstopPrice);
 
@@ -435,10 +385,10 @@ void OrderBook::modifyStopOrder(int orderId, int newShares, int newstopPrice){
 
 
 void OrderBook::executeMarketOrder(Side side, int& shares){
-    // The max possible number of shares is traded. At the end, shares equals the remaining number of shares, or 0 if none is left
-    Limit* bookEdge = (side == Side::Bid) ? lowestAsk : highestBid;
+    // The max possible number of shares is traded. At the end, shares takes as a value the number of remaining shares
+    auto& bookEdge = (side == Side::Bid) ? lowestAsk : highestBid;
 
-    while (bookEdge != nullptr && shares > 0){
+    while (shares > 0 && bookEdge != nullptr){
         Order* headOrder = bookEdge->getHeadOrder(); // The first order to be executed from the bookEdge level
         int tradedShares = std::min(headOrder->getOrderShares(), shares);
         
@@ -447,10 +397,13 @@ void OrderBook::executeMarketOrder(Side side, int& shares){
 
         if (headOrder->getOrderShares() == 0){ // headOrder was completely executed
             orderMap.erase(headOrder->getOrderId());
+            // TO DO: Find new headOrder
             delete headOrder;
+            // TO DO: Assign new headOrder
 
-            if (bookEdge->getNumberOfOrders() == 0)
-                deleteLimit(bookEdge);
+            if (bookEdge->getNumberOfOrders() == 0) // this limit level has no more orders left
+                // TO DO: Update bookEdge
+                deleteLevel(bookEdge, limitORstop::limit);
         }
     }
 }

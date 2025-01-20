@@ -5,10 +5,9 @@
 class Order;    // We declare Order class before defining its attributes and the prototypes of its methods in Order.h
 
 class Limit {   // a limit is a set of orders of the same limit price
-
+private:
     friend class Order; // Order class is a friend of Trade class, thus it can access the private attributes of Trade class
 
-private:
     int limitPrice; // this limit price is common between all orders of the same limit level
     Side side; // side of the trade, bid or ask
     int numberOfOrders; // number of orders in the limit
@@ -41,7 +40,7 @@ public:
     void setLeftChildLimit(Limit* leftChild);
     void setRightChildLimit(Limit* rightChild);
 
-    void addOrder(Order* _order);   // add an order to the limit level
+    void addOrder(Order* _order);   // add an order of limit price limitPrice to this limit level
 };
 
 #endif

@@ -17,8 +17,7 @@ private:
     Limit* askTree; // Ask == Sell
     Limit* lowestAsk;
     
-    /* Stop Orders are activated, whether buy or sell, when a certain price is reached.
-    How do Stop Orders work:
+    /* How do Stop Orders work: a Stop Order is activated when its stop price is exceeded for a Bid or subceeded for an Ask
         Stop Bid Order -> if the lowest ask price goes above this stop order's limit price, then this stop order is executed
         Stop Ask Order -> if the highest bid price goes below ...   */
     Limit* stopBidTree;
@@ -30,22 +29,21 @@ private:
     std::unordered_map<int, Order*> orderMap;
     std::unordered_map<int, Limit*> limitBidMap;
     std::unordered_map<int, Limit*> limitAskMap;
-
     std::unordered_map<int, Limit*> stopMap;
 
     // Limit tree's methods
-    void addLimit(int limitPrice, Side side); // Used when adding a limit order with a new limit price
-    void deleteLimit(Limit* limit); // Used when a limit has no order left
+    void addLimit(int limitPrice, Side side); // Add a new limit level; Used when adding a limit order with a new limit price
 
     // Stop tree's methods
-    Limit* insertNewStop(Limit* root, Limit* newStop, Limit* parentStop = nullptr); // Used in addStopLevel(...) to insert new Stops in the one of the two stop trees
     void addStopLevel(int stopPrice, Side side); // Add a new stop price
-    void deleteStopLevel(Limit* stopLevel);
 
+    // Auxiliary methods used inside other methods
     void stopOrderToLimitOrder(Order* Order, Side side); 
     void executeStopOrders(Side side); // Used for both limit and stop orders
 
+    // Limit and Stop trees' shared methods
     Limit* insertNewLevel(Limit* root, Limit* newLevel, Limit* parentLevel, limitORstop limit_or_stop);
+    void deleteLevel(Limit* level, limitORstop limit_or_stop);
 
     // AVL Tree methods; Note: OrderBook is an AVL Tree
     int limitHeightDifference(Limit* limit) const;
@@ -56,7 +54,7 @@ private:
     Limit* lrRotate(Limit* parentLimit, limitORstop limit_or_stop);
     Limit* rlRotate(Limit* parentLimit, limitORstop limit_or_stop);
 
-    void updateBookRoot(Limit* level, limitORstop limit_or_stop);
+    void updateTreeRoot(Limit* level, limitORstop limit_or_stop);
     void updateBookEdge(Limit* level, limitORstop limit_or_stop);
 
 public:

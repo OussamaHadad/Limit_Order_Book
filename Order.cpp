@@ -28,20 +28,20 @@ int Order::getLimitPrice() const{
     return limitPrice;
 }
 
-OrderType Order::getOrderType() const{
-    return type;
-}
-
-TIF Order::getTIF() const{
-    return tif;
-}
-
 Limit* Order::getParentLimit() const{
     return parentLimit;
 }
 
 Order* Order::getNextOrder() const{
     return nextOrder;
+}
+
+OrderType Order::getOrderType() const{
+    return type;
+}
+
+TIF Order::getTIF() const{
+    return tif;
 }
 
 

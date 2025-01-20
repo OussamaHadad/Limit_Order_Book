@@ -150,7 +150,7 @@ void Limit::setRightChildLimit(Limit* newRightChildLimit){
 void Limit::addOrder(Order* order){
     if (headOrder == nullptr)
         headOrder = tailOrder = order;
-    else{   // _order is the new tailOrder
+    else{   // _order is the new tailOrder of this limit level
         tailOrder->nextOrder = order;
         order->previousOrder = tailOrder;
         order->nextOrder = nullptr;
