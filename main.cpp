@@ -8,8 +8,10 @@
 
 int main(){
     OrderBook myOrderBook = OrderBook();
-    Order myOrder = Order(1, Side::Bid, 1, 100);
-    myOrder.showOrder();
+    myOrderBook.addLimitOrder(1, OrderSide::Bid, 100, 1);
+    myOrderBook.addLimitOrder(55, OrderSide::Ask, 200, 2);
+
+    myOrderBook.displayAllOrders();
 
     return 0;
 }

@@ -5,143 +5,172 @@
 #include "OrderBook.h"
 
 
-void OrderBook::updateTreeRoot(Limit* level, limitORstop limit_or_stop){
-    /* If level (limit or stop) is deleted and it is the root of one of the bid/ask trees, 
-    this function is used to update the root of the corresponding tree */
+// Update the root of the AVL tree when a level is deleted
+void OrderBook::updateTreeRoot(Limit* level, OrderCategory orderCategory) {
+    auto& treeRoot = (orderCategory == OrderCategory::Limit) ? ((level->getOrderSide() == OrderSide::Bid) ? bidTree : askTree) 
+        : ((level->getOrderSide() == OrderSide::Bid) ? stopBidTree : stopAskTree);
 
-    auto& treeRoot = (limit_or_stop == limitORstop::limit) ? 
-                            ((level->getSide() == Side::Bid) ? bidTree : askTree) 
-                        :
-                            ((level->getSide() == Side::Bid) ? stopBidTree : stopAskTree);
-
-    if (level == treeRoot){
-        if (treeRoot->getRightChildLimit() == nullptr)
+    if (level == treeRoot) {
+        if (!treeRoot->getRightChildLimit())
             treeRoot = treeRoot->getLeftChildLimit();
-
-        else{ // The root node has both a left and a right child, hence the new root will be the most left child of its right subtree
+        else {
+            // The new root is the leftmost child of the right subtree
             treeRoot = treeRoot->getRightChildLimit();
-            
-            while (treeRoot->getLeftChildLimit() != nullptr)
+            while (treeRoot->getLeftChildLimit())
                 treeRoot = treeRoot->getLeftChildLimit();
         }
     }
 }
 
-void OrderBook::updateBookEdge(Limit* level, limitORstop limit_or_stop){
-    /* This function replaces the current book edge with the next book edge given the order of Limits. 
-    It is used right before deleting the book edge */
+// Update the book edge (highest bid or lowest ask) when a level is deleted
+void OrderBook::updateBookEdge(Limit* level, OrderCategory orderCategory) {
+    auto& bookEdge = (orderCategory == OrderCategory::Limit) ? ((level->getOrderSide() == OrderSide::Bid) ? highestBid : lowestAsk) 
+        : ((level->getOrderSide() == OrderSide::Bid) ? lowestStopBid : highestStopAsk);
 
-    auto& bookEdge = (limit_or_stop == limitORstop::limit) ? 
-                            ((level->getSide() == Side::Bid) ? bidTree : askTree) 
-                        :
-                            ((level->getSide() == Side::Bid) ? stopBidTree : stopAskTree);
-
-    if (level == bookEdge){
-        if (level->getSide() == Side::Bid && level->getLeftChildLimit() != nullptr) // bookedge from buy side can't have a right child
+    if (level == bookEdge) {
+        if (level->getOrderSide() == OrderSide::Bid && level->getLeftChildLimit())
             bookEdge = level->getLeftChildLimit();
-
-        else if (level->getSide() == Side::Ask && level->getRightChildLimit() != nullptr) // bookedge from buy side can't have a left child
+        else if (level->getOrderSide() == OrderSide::Ask && level->getRightChildLimit())
             bookEdge = level->getRightChildLimit();
-            
         else
             bookEdge = level->getParentLimit();
     }
 }
 
-
-int OrderBook::getLimitHeight(Limit* limit) const{
-    // Note: the height of the bottom level's limits is 1 not 0
-    if (limit == nullptr)
+// Get the height of a limit level in the AVL tree
+int OrderBook::getLimitHeight(Limit* limit) const {
+    if (!limit) 
         return 0;
-
-    int l_child_height = getLimitHeight(limit->getLeftChildLimit());
-    int r_child_height = getLimitHeight(limit->getRightChildLimit());
-
-    return 1 + std::max(l_child_height, r_child_height);
+    int leftHeight = getLimitHeight(limit->getLeftChildLimit());
+    int rightHeight = getLimitHeight(limit->getRightChildLimit());
+    return 1 + std::max(leftHeight, rightHeight);
 }
 
-int OrderBook::limitHeightDifference(Limit* limit) const{
-    // Note: By definition of AVL Tree, the height of the left side is greater than or equal to the height of the right side
-    int l_side_height = getLimitHeight(limit->getLeftChildLimit());
-    int r_side_height = getLimitHeight(limit->getRightChildLimit());
-
-    return std::abs(l_side_height - r_side_height);
+// Calculate the height difference between left and right subtrees
+int OrderBook::limitHeightDifference(Limit* limit) const {
+    if (!limit) 
+        return 0;
+    int leftHeight = getLimitHeight(limit->getLeftChildLimit());
+    int rightHeight = getLimitHeight(limit->getRightChildLimit());
+    return leftHeight - rightHeight;
 }
 
-Limit* OrderBook::rRotate(Limit* parentLimit, limitORstop limit_or_stop){
-    Limit* newParentLimit = parentLimit->getRightChildLimit();
+// Right rotation for AVL tree balancing
+Limit* OrderBook::rRotate(Limit* parentLimit, OrderCategory orderCategory) {
+    Limit* newParent = parentLimit->getRightChildLimit();
+    parentLimit->setRightChildLimit(newParent->getLeftChildLimit());
 
-    parentLimit->setRightChildLimit(newParentLimit->getLeftChildLimit());
-    if (newParentLimit->getLeftChildLimit() != nullptr)
-        newParentLimit->getLeftChildLimit()->setParentLimit(parentLimit);
+    if (newParent->getLeftChildLimit())
+        newParent->getLeftChildLimit()->setParentLimit(parentLimit);
 
-    newParentLimit->setLeftChildLimit(parentLimit);
+    newParent->setLeftChildLimit(parentLimit);
+    newParent->setParentLimit(parentLimit->getParentLimit());
+    parentLimit->setParentLimit(newParent);
 
-    if (parentLimit->getParentLimit() != nullptr)
-        newParentLimit->setParentLimit(parentLimit->getParentLimit());
-    else{
-        newParentLimit->setParentLimit(nullptr);
-
-        if (limit_or_stop == limitORstop::limit)
-            (parentLimit->getSide() == Side::Bid) ? setBidTree(newParentLimit) : setAskTree(newParentLimit);
-        else // We assume: limit_or_stop == limitORstop::limit
-            (parentLimit->getSide() == Side::Bid) ? setStopBidTree(newParentLimit) : setStopAskTree(newParentLimit);
+    if (!newParent->getParentLimit()) {
+        if (orderCategory == OrderCategory::Limit)
+            (parentLimit->getOrderSide() == OrderSide::Bid) ? setBidTree(newParent) : setAskTree(newParent);
+        else
+            (parentLimit->getOrderSide() == OrderSide::Bid) ? setStopBidTree(newParent) : setStopAskTree(newParent);
     }
-    parentLimit->setParentLimit(newParentLimit);
-    return newParentLimit;
+    return newParent;
 }
 
-Limit* OrderBook::lRotate(Limit* parentLimit, limitORstop limit_or_stop){
-    Limit* newParentLimit = parentLimit->getLeftChildLimit();
+// Left rotation for AVL tree balancing
+Limit* OrderBook::lRotate(Limit* parentLimit, OrderCategory orderCategory) {
+    Limit* newParent = parentLimit->getLeftChildLimit();
+    parentLimit->setLeftChildLimit(newParent->getRightChildLimit());
 
-    parentLimit->setLeftChildLimit(newParentLimit->getRightChildLimit());
+    if (newParent->getRightChildLimit())
+        newParent->getRightChildLimit()->setParentLimit(parentLimit);
 
-    if (newParentLimit->getRightChildLimit() != nullptr)
-        newParentLimit->getRightChildLimit()->setParentLimit(parentLimit);
-    
-    newParentLimit->setRightChildLimit(parentLimit);
+    newParent->setRightChildLimit(parentLimit);
+    newParent->setParentLimit(parentLimit->getParentLimit());
+    parentLimit->setParentLimit(newParent);
 
-    if (parentLimit->getParentLimit() != nullptr)
-        newParentLimit->setParentLimit(parentLimit->getParentLimit());
-    else{
-        newParentLimit->setParentLimit(nullptr);
-
-        if (limit_or_stop == limitORstop::limit)
-            (parentLimit->getSide() == Side::Bid) ? setBidTree(newParentLimit) : setAskTree(newParentLimit);
-        else // We assume: limit_or_stop == limitORstop::limit
-            (parentLimit->getSide() == Side::Bid) ? setStopBidTree(newParentLimit) : setStopAskTree(newParentLimit);
+    if (!newParent->getParentLimit()) {
+        if (orderCategory == OrderCategory::Limit)
+            (parentLimit->getOrderSide() == OrderSide::Bid) ? setBidTree(newParent) : setAskTree(newParent);
+        else
+            (parentLimit->getOrderSide() == OrderSide::Bid) ? setStopBidTree(newParent) : setStopAskTree(newParent);
     }
-    parentLimit->setParentLimit(newParentLimit);
-    return newParentLimit;
+    return newParent;
 }
 
-Limit* OrderBook::lrRotate(Limit* parentLimit, limitORstop limit_or_stop){
-    Limit* newParentLimit = parentLimit->getLeftChildLimit();
-    parentLimit->setLeftChildLimit(rRotate(newParentLimit, limit_or_stop));
-    return lRotate(parentLimit, limit_or_stop);
+// Left-right rotation for AVL tree balancing
+Limit* OrderBook::lrRotate(Limit* parentLimit, OrderCategory orderCategory) {
+    parentLimit->setLeftChildLimit(rRotate(parentLimit->getLeftChildLimit(), orderCategory));
+    return lRotate(parentLimit, orderCategory);
 }
 
-Limit* OrderBook::rlRotate(Limit* parentLimit, limitORstop limit_or_stop){
-    Limit* newParentLimit = parentLimit->getRightChildLimit();
-    parentLimit->setRightChildLimit(lRotate(newParentLimit, limit_or_stop));
-    return rRotate(parentLimit, limit_or_stop);
+// Right-left rotation for AVL tree balancing
+Limit* OrderBook::rlRotate(Limit* parentLimit, OrderCategory orderCategory) {
+    parentLimit->setRightChildLimit(lRotate(parentLimit->getRightChildLimit(), orderCategory));
+    return rRotate(parentLimit, orderCategory);
 }
 
-Limit* OrderBook::balanceTree(Limit* limit, limitORstop limit_or_stop){
+// Balance the AVL tree after insertion or deletion
+Limit* OrderBook::balanceTree(Limit* limit, OrderCategory orderCategory) {
     int balanceFactor = limitHeightDifference(limit);
 
-    if (balanceFactor > 1) {
+    if (balanceFactor > 1) { // Left-heavy
         if (limitHeightDifference(limit->getLeftChildLimit()) >= 0)
-            limit = lRotate(limit, limit_or_stop);
+            return lRotate(limit, orderCategory);
         else
-            limit = lrRotate(limit, limit_or_stop);
+            return lrRotate(limit, orderCategory);
     } 
-    else if (balanceFactor < -1) {
+    else if (balanceFactor < -1) { // Right-heavy
         if (limitHeightDifference(limit->getRightChildLimit()) > 0)
-            limit = rlRotate(limit, limit_or_stop);
+            return rlRotate(limit, orderCategory);
         else
-            limit = rRotate(limit, limit_or_stop);
+            return rRotate(limit, orderCategory);
     }
     return limit;
 }
 
+void OrderBook::traverseAndDisplay(Limit* root, bool reverseOrder, bool isStop) const {
+    // Traverse the AVL tree and print orders
+    if (!root) 
+        return;
+
+    if (reverseOrder) {
+        // Reverse in-order (right, current, left) for descending prices (bids)
+        traverseAndDisplay(root->getRightChildLimit(), reverseOrder, isStop);
+        printLimitOrders(root, isStop);
+        traverseAndDisplay(root->getLeftChildLimit(), reverseOrder, isStop);
+    } 
+    else {
+        // In-order (left, current, right) for ascending prices (asks)
+        traverseAndDisplay(root->getLeftChildLimit(), reverseOrder, isStop);
+        printLimitOrders(root, isStop);
+        traverseAndDisplay(root->getRightChildLimit(), reverseOrder, isStop);
+    }
+}
+
+void OrderBook::printLimitOrders(Limit* limit, bool isStop) const {
+    // Print all orders at a specific price level
+    if (!limit || !limit->getHeadOrder()) 
+        return;
+
+    std::cout << "[Price: " << limit->getLimitPrice() 
+              << "] | Side: " << (limit->getOrderSide() == OrderSide::Bid ? "Bid" : "Ask")
+              << " | Type: " << (isStop ? "Stop" : "Limit") 
+              << " | Orders:" << std::endl;
+
+    Order* current = limit->getHeadOrder();
+    while (current) {
+        std::cout << "  Order ID: " << current->getOrderId()
+                  << " | Shares: " << current->getOrderShares()
+                  << " | TIF: ";
+        switch (current->getTIF()) {
+            case TimeInForce::GTC: std::cout << "GTC"; break;
+            case TimeInForce::DAY: std::cout << "DAY"; break;
+            case TimeInForce::IOC: std::cout << "IOC"; break;
+            case TimeInForce::FOK: std::cout << "FOK"; break;
+            default: std::cout << "Unknown";
+        }
+        std::cout << " | Submitted: " << current->getSubmissionTime() << std::endl;
+        current = current->getNextOrder();
+    }
+    std::cout << "---------------------------------" << std::endl;
+}

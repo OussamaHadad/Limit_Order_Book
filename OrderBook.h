@@ -17,9 +17,11 @@ private:
     Limit* askTree; // Ask == Sell
     Limit* lowestAsk;
     
-    /* How do Stop Orders work: a Stop Order is activated when its stop price is exceeded for a Bid or subceeded for an Ask
+    /* 
+    How do Stop Orders work: a Stop Order is activated when its stop price is exceeded for a Bid or subceeded for an Ask
         Stop Bid Order -> if the lowest ask price goes above this stop order's limit price, then this stop order is executed
-        Stop Ask Order -> if the highest bid price goes below ...   */
+        Stop Ask Order -> if the highest bid price goes below ...   
+    */
     Limit* stopBidTree;
     Limit* lowestStopBid; // triggered at a lower limit price from the Ask side, hence 1st to be executed
     Limit* stopAskTree;
@@ -32,68 +34,72 @@ private:
     std::unordered_map<int, Limit*> stopMap;
 
     // Limit tree's methods
-    void addLimit(int limitPrice, Side side); // Add a new limit level; Used when adding a limit order with a new limit price
-
+    void addLimit(int limitPrice, OrderSide orderSide); // Add a new limit level; Used when adding a limit order with a new limit price
     // Stop tree's methods
-    void addStopLevel(int stopPrice, Side side); // Add a new stop price
+    void addStopLevel(int stopPrice, OrderSide orderSide); // Add a new stop price
 
     // Auxiliary methods used inside other methods
-    void stopOrderToLimitOrder(Order* Order, Side side); 
-    void executeStopOrders(Side side); // Used for both limit and stop orders
+    void stopOrderToLimitOrder(Order* Order, OrderSide orderSide); 
+    void executeStopOrders(OrderSide orderSide); // Used for both limit and stop orders
 
     // Limit and Stop trees' shared methods
-    Limit* insertNewLevel(Limit* root, Limit* newLevel, Limit* parentLevel, limitORstop limit_or_stop);
-    void deleteLevel(Limit* level, limitORstop limit_or_stop);
+    Limit* insertNewLevel(Limit* root, Limit* newLevel, Limit* parentLevel, OrderCategory  orderCategory);
+    void deleteLevel(Limit* level, OrderCategory  orderCategory);
 
     // AVL Tree methods; Note: OrderBook is an AVL Tree
     int limitHeightDifference(Limit* limit) const;
-    Limit* balanceTree(Limit* parentLimit, limitORstop limit_or_stop);
+    Limit* balanceTree(Limit* parentLimit, OrderCategory  orderCategory);
     // Rotations happen at the node where the unbalance happens
-    Limit* rRotate(Limit* parentLimit, limitORstop limit_or_stop); // for a "right"-right-heavy tree
-    Limit* lRotate(Limit* parentLimit, limitORstop limit_or_stop);
-    Limit* lrRotate(Limit* parentLimit, limitORstop limit_or_stop);
-    Limit* rlRotate(Limit* parentLimit, limitORstop limit_or_stop);
+    Limit* rRotate(Limit* parentLimit, OrderCategory  orderCategory); // for a "right"-right-heavy tree
+    Limit* lRotate(Limit* parentLimit, OrderCategory  orderCategory);
+    Limit* lrRotate(Limit* parentLimit, OrderCategory  orderCategory);
+    Limit* rlRotate(Limit* parentLimit, OrderCategory  orderCategory);
 
-    void updateTreeRoot(Limit* level, limitORstop limit_or_stop);
-    void updateBookEdge(Limit* level, limitORstop limit_or_stop);
+    void updateTreeRoot(Limit* level, OrderCategory  orderCategory);
+    void updateBookEdge(Limit* level, OrderCategory  orderCategory);
+
+    void traverseAndDisplay(Limit* root, bool isBid, bool isStop) const;
+    void printLimitOrders(Limit* limit, bool isStop) const;
 
 public:
     OrderBook();
     ~OrderBook();
 
     // Getters
-    Limit* getBidTree() const;
-    Limit* getAskTree() const;
-    Limit* getLowestAsk() const;
-    Limit* getHighestBid() const;
-    Limit* getStopBidTree() const;
-    Limit* getStopAskTree() const;
-    Limit* getLowestStopBid() const;
-    Limit* getHighestStopAsk() const;
+    inline Limit* getBidTree() const { return bidTree; }
+    inline Limit* getAskTree() const { return askTree; }
+    inline Limit* getLowestAsk() const { return lowestAsk; }
+    inline Limit* getHighestBid() const { return highestBid; }
+    inline Limit* getStopBidTree() const { return stopBidTree; }
+    inline Limit* getStopAskTree() const { return stopAskTree; }
+    inline Limit* getLowestStopBid() const { return lowestStopBid; }
+    inline Limit* getHighestStopAsk() const { return highestStopAsk; }
 
     // Setters
-    void setBidTree(Limit* newBidTree);
-    void setAskTree(Limit* newAskTree);
-    void setStopBidTree(Limit* newStopBidTree);
-    void setStopAskTree(Limit* newStopAskTree);
+    inline void setBidTree(Limit* newBidTree) { bidTree = newBidTree; }
+    inline void setAskTree(Limit* newAskTree) { askTree = newAskTree; }
+    inline void setStopBidTree(Limit* newStopBidTree) { stopBidTree = newStopBidTree; }
+    inline void setStopAskTree(Limit* newStopAskTree) { stopAskTree = newStopAskTree; }
 
     // Limit order methods
-    void addLimitOrder(int orderId, Side side, int limitPrice, int shares); // Note: For any order type, Side is needed only when adding an order
+    void addLimitOrder(int orderId, OrderSide orderSide, int limitPrice, int shares); // Note: For any order type, OrderSide is needed only when adding an order
     void cancelLimitOrder(int orderId);
     void modifyLimitOrder(int orderId, int newShares, int newLimitPrice);
 
     // Stop order methods
-    void addStopOrder(int orderId, Side side, int stopPrice, int shares); // Once stopPrice is reached the order is executed with the market price
+    void addStopOrder(int orderId, OrderSide orderSide, int stopPrice, int shares); // Once stopPrice is reached the order is executed with the market price
     void cancelStopOrder(int orderId);
     void modifyStopOrder(int orderId, int newShares, int newstopPrice);
 
     // Market orders are executed immediately after adding them, hence it's not possible to cancel or modify them
     // We assume a market order is filled completely or partially, and then removed
-    void executeMarketOrder(Side side, int& shares);
-    void addMarketOrder(Side side, int shares);
+    void executeMarketOrder(OrderSide orderSide, int& shares);
+    void addMarketOrder(OrderSide orderSide, int shares);
 
     // AVL Tree methods
     int getLimitHeight(Limit* limit) const;
+
+    void displayAllOrders(bool includeStopOrders = false) const;
 };
 
 #endif
