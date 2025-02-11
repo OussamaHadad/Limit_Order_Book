@@ -59,6 +59,7 @@
         "iomanip": "cpp",
         "ratio": "cpp",
         "sstream": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "random": "cpp"
     }
 }

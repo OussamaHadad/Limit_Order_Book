@@ -47,7 +47,8 @@ void Limit::addOrder(Order* order) {
 }
 
 void Limit::removeOrder(Order* order) {
-    if (!order || !headOrder) 
+    // Update the Limit level's DLL and both number of orders and total shares after an order is removed (e.g: fully executed, etc.)
+    if (!order || !headOrder)
         return;
 
     if (order == headOrder) {
@@ -70,6 +71,6 @@ void Limit::removeOrder(Order* order) {
     }
 
     --numberOfOrders;
-    totalShares -= order->getOrderShares();
+    totalShares -= order->getOrderShares(); // if the order is fully executed, then the right side equals 0
     delete order;
 }

@@ -9,7 +9,6 @@ class Limit;
 class Order;
 
 class OrderBook {
-
 private:
     // Limit Orders
     Limit* bidTree; // Bid == Buy
@@ -17,8 +16,7 @@ private:
     Limit* askTree; // Ask == Sell
     Limit* lowestAsk;
     
-    /* 
-    How do Stop Orders work: a Stop Order is activated when its stop price is exceeded for a Bid or subceeded for an Ask
+    /* How do Stop Orders work: a Stop Order is activated when its stop price is exceeded for a Bid or subceeded for an Ask
         Stop Bid Order -> if the lowest ask price goes above this stop order's limit price, then this stop order is executed
         Stop Ask Order -> if the highest bid price goes below ...   
     */
@@ -27,24 +25,22 @@ private:
     Limit* stopAskTree;
     Limit* highestStopAsk; // triggered at a higher limit price from the Bid side, hence 1st to be executed
 
-    // Orders are added to orderMap, and the Limits are added to either Limit Bid or Limit Ask map
     std::unordered_map<int, Order*> orderMap;
     std::unordered_map<int, Limit*> limitBidMap;
     std::unordered_map<int, Limit*> limitAskMap;
     std::unordered_map<int, Limit*> stopMap;
 
-    // Limit tree's methods
-    void addLimit(int limitPrice, OrderSide orderSide); // Add a new limit level; Used when adding a limit order with a new limit price
-    // Stop tree's methods
+    // Limit & Stop trees' methods
+    void addLimit(int limitPrice, OrderSide orderSide); // Add a new limit level
     void addStopLevel(int stopPrice, OrderSide orderSide); // Add a new stop price
-
-    // Auxiliary methods used inside other methods
-    void stopOrderToLimitOrder(Order* Order, OrderSide orderSide); 
-    void executeStopOrders(OrderSide orderSide); // Used for both limit and stop orders
 
     // Limit and Stop trees' shared methods
     Limit* insertNewLevel(Limit* root, Limit* newLevel, Limit* parentLevel, OrderCategory  orderCategory);
     void deleteLevel(Limit* level, OrderCategory  orderCategory);
+
+    // Auxiliary methods
+    void stopOrderToLimitOrder(Order* Order, OrderSide orderSide); 
+    void executeStopOrders(OrderSide orderSide); // Used for limit & stop orders
 
     // AVL Tree methods; Note: OrderBook is an AVL Tree
     int limitHeightDifference(Limit* limit) const;
@@ -74,6 +70,7 @@ public:
     inline Limit* getStopAskTree() const { return stopAskTree; }
     inline Limit* getLowestStopBid() const { return lowestStopBid; }
     inline Limit* getHighestStopAsk() const { return highestStopAsk; }
+    inline std::unordered_map<int, Order*> getOrderMap() const { return orderMap; }
 
     // Setters
     inline void setBidTree(Limit* newBidTree) { bidTree = newBidTree; }
